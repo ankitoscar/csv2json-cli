@@ -1,9 +1,11 @@
 package main
 
 import (
+	"encoding/csv"
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 )
@@ -12,6 +14,17 @@ type inputFile struct {
 	filepath  string
 	seperator string
 	pretty    bool
+}
+
+func exitGracefully(err error) {
+	fmt.Fprintf(os.Stderr, "error: %v\n", err)
+	os.Exit(1)
+}
+
+func check(e error) {
+	if e != nil {
+		exitGracefully((e))
+	}
 }
 
 func getFileData() (inputFile, error) {
@@ -44,6 +57,44 @@ func checkIfValidFile(filename string) (bool, error) {
 	}
 
 	return true, nil
+}
+
+func processCsvFile(fileData inputFile, writerChannel chan<- map[string]string) {
+	file, err := os.Open(fileData.filepath)
+	check(err)
+	defer file.Close()
+
+	var headers, line []string
+	reader := csv.NewReader(file)
+
+	if fileData.separator == "semicolon" {
+		reader.Comma = ';'
+	}
+
+	headers, err = reader.Read()
+
+	check(err)
+
+	for {
+		line, err = reader.Read()
+
+		if err == io.EOF {
+			close(writerChannel)
+			break
+		} else if err != nil {
+			exitGracefully(err)
+		}
+
+		record, err := processLine(headers, line)
+
+		if err != nil {
+			fmt.Printf("Line: %sError :%s\n", line, err)
+			continue
+		}
+
+		writerChannel <- record
+	}
+
 }
 
 func main() {
