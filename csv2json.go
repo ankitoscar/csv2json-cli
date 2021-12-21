@@ -3,7 +3,9 @@ package main
 import (
 	"errors"
 	"flag"
+	"fmt"
 	"os"
+	"path/filepath"
 )
 
 type inputFile struct {
@@ -30,6 +32,18 @@ func getFileData() (inputFile, error) {
 
 	return inputFile{fileLocation, *seperator, *pretty}, nil
 
+}
+
+func checkIfValidFile(filename string) (bool, error) {
+	if fileExtension := filepath.Ext(filename); fileExtension != ".csv" {
+		return false, fmt.Errorf("File %s is not CSV", filename)
+	}
+
+	if _, err := os.Stat(filename); err != nil && os.IsNotExist(err) {
+		return false, fmt.Errorf("File %s does not exist", filename)
+	}
+
+	return true, nil
 }
 
 func main() {
