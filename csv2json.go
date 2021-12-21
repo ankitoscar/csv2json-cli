@@ -12,7 +12,7 @@ import (
 
 type inputFile struct {
 	filepath  string
-	seperator string
+	separator string
 	pretty    bool
 }
 
@@ -95,6 +95,20 @@ func processCsvFile(fileData inputFile, writerChannel chan<- map[string]string) 
 		writerChannel <- record
 	}
 
+}
+
+func processLine(headers []string, dataList []string) (map[string]string, error) {
+	if len(dataList) != len(headers) {
+		return nil, errors.New("Line doesn't match headers format. Skipping")
+	}
+
+	recordMap := make(map[string]string)
+
+	for i, name := range headers {
+		recordMap[name] = dataList[i]
+	}
+
+	return recordMap, nil
 }
 
 func main() {
