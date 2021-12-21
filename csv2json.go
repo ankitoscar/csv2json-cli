@@ -2,12 +2,14 @@ package main
 
 import (
 	"encoding/csv"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 type inputFile struct {
@@ -109,6 +111,73 @@ func processLine(headers []string, dataList []string) (map[string]string, error)
 	}
 
 	return recordMap, nil
+}
+
+func writeJSONFile(csvPath string, writerChannel <-chan map[string]string, done chan<- bool, pretty bool) {
+	writeString := createStringWriter(csvPath)
+	jsonFunc, breakLine := getJsonFunc(pretty)
+
+	fmt.Println("Writing JSON file...")
+
+	writeString("["+breakLine, false)
+	first := true
+
+	for {
+		record, more := <-writerChannel
+		if more {
+			if !first {
+				writeString(","+breakLine, false)
+			} else {
+				first = false
+			}
+
+			jsonData := jsonFunc(record)
+			writeString(jsonData, false)
+		} else {
+			writeString(breakLine+"]", true)
+			fmt.Println("Completed!")
+			done <- true
+			break
+		}
+	}
+}
+
+func createStringWriter(csvPath string) func(string, bool) {
+	jsonDir := filepath.Dir(csvPath)
+	jsonName := fmt.Sprintf("%s.json", strings.TrimSuffix(filepath.Base(csvPath), ".csv"))
+	finalLocation := filepath.Join(jsonDir, jsonName)
+
+	f, err := os.Create(finalLocation)
+
+	check(err)
+
+	return func(data string, close bool) {
+		_, err := f.WriteString(data)
+		check(err)
+
+		if close {
+			f.Close()
+		}
+	}
+}
+
+func getJsonFunc(pretty bool) (func(map[string]string) string, string) {
+	var jsonFunc func(map[string]string) string
+	var breakLine string
+	if pretty {
+		breakLine = "\n"
+		jsonFunc = func(record map[string]string) string {
+			jsonData, _ := json.MarshalIndent(record, "   ", "   ")
+			return "   " + string(jsonData)
+		}
+	} else {
+		breakLine = ""
+		jsonFunc = func(record map[string]string) string {
+			jsonData, _ := json.Marshal(record)
+			return string(jsonData)
+		}
+	}
+	return jsonFunc, breakLine
 }
 
 func main() {
